@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "analyze": "node --env-file=.env.local --import tsx scripts/analyze.mts",
-    "backtest": "node --env-file=.env.local --import tsx scripts/backtest.mts"
+    "backtest": "node --env-file=.env.local --import tsx scripts/backtest.mts",
+    "research": "node --env-file=.env.local --import tsx scripts/research.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

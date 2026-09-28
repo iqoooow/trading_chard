@@ -5,7 +5,7 @@ import { candles, params, randomWalk } from '../../zones/__tests__/helpers';
 import { SHADOW_MAX_ATR, SHADOW_MIN_ATR, shadowOffset } from '../baseline';
 import { measureOutcome } from '../outcome';
 import { summarize } from '../stats';
-import { collectEvents, type BacktestEvent, type ProvidedZone, type ZoneProvider } from '../walkForward';
+import { algorithmProvider, collectEvents, createProviders, type BacktestEvent, type ProvidedZone, type ZoneProvider } from '../walkForward';
 
 // Engine testidagi demand zona ssenariysi: zona [99, 101], 7/10/12-shamlarda test, 13-da buziladi
 const p = params({ atrPeriod: 3, swingN: 50 });
@@ -94,8 +94,8 @@ describe('kalibrlash', () => {
       // Swing shamining ekstremumida — oldingi sham tegmaydigan qilib
       const zone: ProvidedZone =
         s.type === 'low'
-          ? { kind: 'demand', bottom: s.price - 0.3 * a, top: s.price + 0.1 * (prev.low - s.price), formedIndex: s.index, atrAtFormation: a, score: 100 }
-          : { kind: 'supply', top: s.price + 0.3 * a, bottom: s.price - 0.1 * (s.price - prev.high), formedIndex: s.index, atrAtFormation: a, score: 100 };
+          ? { kind: 'demand', bottom: s.price - 0.3 * a, top: s.price + 0.1 * (prev.low - s.price), formedIndex: s.index, atrAtFormation: a, score: 100, touches: 1 }
+          : { kind: 'supply', top: s.price + 0.3 * a, bottom: s.price - 0.1 * (s.price - prev.high), formedIndex: s.index, atrAtFormation: a, score: 100, touches: 1 };
       for (let t = Math.max(1, s.index - 30); t <= s.index; t++) byDay.set(t, [...(byDay.get(t) ?? []), zone]);
     }
     const oracle: ZoneProvider = (t) => ({ atr: atr[t - 1] ?? null, zones: byDay.get(t) ?? [] });
@@ -115,12 +115,33 @@ describe('kalibrlash', () => {
   });
 });
 
+describe('createProviders', () => {
+  const data = randomWalk(300);
+  const { daily, weekly } = createProviders(data, params());
+
+  it('kunlik provayder oddiy algorithmProvider bilan bir xil, keshdan qayta o\'qish ham bir xil', () => {
+    const plain = algorithmProvider(data, params());
+    for (const t of [120, 200, 299]) {
+      expect(daily(t)).toEqual(plain(t));
+      expect(daily(t)).toEqual(daily(t));
+    }
+  });
+
+  it('haftalik zonalar kunlik ATR bilan qaytadi va touch soni bor', () => {
+    const w = weekly(299);
+    expect(w.atr).toBe(daily(299).atr);
+    expect(w.zones.length).toBeGreaterThan(0);
+    expect(w.zones.every((z) => Number.isInteger(z.touches))).toBe(true);
+  });
+});
+
 describe('summarize', () => {
   const ev = (outcome: BacktestEvent['outcome'], control = false): BacktestEvent => ({
     index: 0,
     control,
     kind: 'sr',
     score: 0,
+    touches: 1,
     approach: 'above',
     widthAtr: 1,
     outcome,
@@ -143,6 +164,8 @@ describe('summarize', () => {
     expect(s.control).toMatchObject({ events: 4, successRate: 0.25, failRate: 0.75 });
     expect(s.edge).toBeCloseTo(0.25);
     expect(s.z).toBeGreaterThan(0);
+    expect(s.failEdge).toBeCloseTo(0.25 - 0.75);
+    expect(s.failZ).toBeLessThan(0);
   });
 
   it('bir xil natijada edge 0', () => {

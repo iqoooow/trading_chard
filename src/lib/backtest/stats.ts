@@ -13,6 +13,8 @@ export type Summary = {
   control: Rates;
   edge: number; // real.successRate − control.successRate
   z: number; // ikki ulush farqi z-testi; |z| > 2 ≈ 95% ishonch bilan tasodif emas
+  failEdge: number; // real.failRate − control.failRate (breakout gipotezasi uchun)
+  failZ: number;
 };
 
 function rates(all: BacktestEvent[]): Rates {
@@ -28,14 +30,22 @@ function rates(all: BacktestEvent[]): Rates {
   };
 }
 
+// Ikki mustaqil ulush farqi uchun z (umumiy ulush bilan)
+function twoProportionZ(p1: number, n1: number, p2: number, n2: number): number {
+  const pooled = (p1 * n1 + p2 * n2) / (n1 + n2);
+  const se = Math.sqrt(pooled * (1 - pooled) * (1 / n1 + 1 / n2));
+  return se > 0 ? (p1 - p2) / se : 0;
+}
+
 export function summarize(events: BacktestEvent[]): Summary {
   const real = rates(events.filter((e) => !e.control));
   const control = rates(events.filter((e) => e.control));
-  const edge = real.successRate - control.successRate;
-
-  const n1 = real.events;
-  const n2 = control.events;
-  const pooled = (real.successRate * n1 + control.successRate * n2) / (n1 + n2);
-  const se = Math.sqrt(pooled * (1 - pooled) * (1 / n1 + 1 / n2));
-  return { real, control, edge, z: se > 0 ? edge / se : 0 };
+  return {
+    real,
+    control,
+    edge: real.successRate - control.successRate,
+    z: twoProportionZ(real.successRate, real.events, control.successRate, control.events),
+    failEdge: real.failRate - control.failRate,
+    failZ: twoProportionZ(real.failRate, real.events, control.failRate, control.events),
+  };
 }

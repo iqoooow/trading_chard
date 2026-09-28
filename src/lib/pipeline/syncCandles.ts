@@ -28,11 +28,13 @@ function isWeekend(date: string): boolean {
   return day === 0 || day === 6;
 }
 
-// TwelveData'dan oxirgi outputSize ta kunlik shamni olib, yopilganlarini bazaga upsert qiladi.
-// Qaytaradi: yozilgan shamlar soni.
-export async function syncCandles(supabase: SupabaseClient, apiKey: string, outputSize: number): Promise<number> {
+export type FetchedCandle = { timestamp: string; open: number; high: number; low: number; close: number };
+
+// TwelveData'dan oxirgi outputSize ta kunlik shamni oladi — faqat yopilgan ish kunlari,
+// xronologik tartibda
+export async function fetchDailyCandles(apiKey: string, symbol: string, outputSize: number): Promise<FetchedCandle[]> {
   const params = new URLSearchParams({
-    symbol: SYMBOL,
+    symbol,
     interval: INTERVAL,
     outputsize: String(Math.min(Math.max(1, outputSize), MAX_OUTPUT_SIZE)),
     timezone: 'UTC', // Kunlik sham chegarasi — UTC 00:00
@@ -52,18 +54,25 @@ export async function syncCandles(supabase: SupabaseClient, apiKey: string, outp
   const todayUtc = new Date().toISOString().slice(0, 10);
 
   // TwelveData eng yangisidan boshlab beradi, xronologik tartibga solamiz
-  const candles = [...data.values]
+  return [...data.values]
     .reverse()
     .filter((candle) => candle.datetime < todayUtc && !isWeekend(candle.datetime))
     .map((candle) => ({
-      symbol: SYMBOL,
-      timeframe: TIMEFRAME,
       timestamp: new Date(`${candle.datetime}T00:00:00Z`).toISOString(),
       open: parseFloat(candle.open),
       high: parseFloat(candle.high),
       low: parseFloat(candle.low),
       close: parseFloat(candle.close),
     }));
+}
+
+// Oxirgi outputSize ta kunlik shamni bazaga upsert qiladi. Qaytaradi: yozilgan shamlar soni.
+export async function syncCandles(supabase: SupabaseClient, apiKey: string, outputSize: number): Promise<number> {
+  const candles = (await fetchDailyCandles(apiKey, SYMBOL, outputSize)).map((c) => ({
+    ...c,
+    symbol: SYMBOL,
+    timeframe: TIMEFRAME,
+  }));
 
   const { error } = await supabase.from('candles').upsert(candles, { onConflict: 'symbol,timeframe,timestamp' });
   if (error) throw new Error(`Shamlarni yozishda xatolik: ${error.message}`);

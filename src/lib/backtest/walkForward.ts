@@ -5,28 +5,48 @@ import { measureOutcome, type Outcome } from './outcome';
 
 export type ProvidedZone = Pick<Zone, 'kind' | 'top' | 'bottom' | 'formedIndex' | 'atrAtFormation'> & {
   score: number;
+  touches: number; // zonaga birlashgan swinglar soni (S/D zonada 0)
 };
 
 // t-kun uchun foydalanuvchiga ko'rinadigan zonalar va ATR — faqat 0..t-1 ma'lumotdan
 export type ZoneProvider = (t: number) => { zones: ProvidedZone[]; atr: number | null };
 
-export function algorithmProvider(candles: Candle[], params: AlgoParams): ZoneProvider {
-  return (t) => {
-    const known = analyze(candles.slice(0, t), params);
-    return {
-      atr: known.atr[t - 1] ?? null,
-      zones: known.zones
-        .filter((z) => z.status !== 'invalid')
-        .map((z) => ({
-          kind: z.kind,
-          top: z.top,
-          bottom: z.bottom,
-          formedIndex: z.formedIndex,
-          atrAtFormation: z.atrAtFormation,
-          score: z.scores.total,
-        })),
-    };
+const toProvided = (zones: Zone[]): ProvidedZone[] =>
+  zones
+    .filter((z) => z.status !== 'invalid')
+    .map((z) => ({
+      kind: z.kind,
+      top: z.top,
+      bottom: z.bottom,
+      formedIndex: z.formedIndex,
+      atrAtFormation: z.atrAtFormation,
+      score: z.scores.total,
+      touches: z.swingPrices.length,
+    }));
+
+// Kunlik va haftalik zonalar provayderlari. Har bir t uchun analyze() bir marta ishlaydi va
+// natija (faqat kichik zona ro'yxatlari) keshlanadi — bir nechta gipotezani bitta hisoblashdan
+// baholash uchun.
+export function createProviders(candles: Candle[], params: AlgoParams): { daily: ZoneProvider; weekly: ZoneProvider } {
+  const cache = new Map<number, { atr: number | null; daily: ProvidedZone[]; weekly: ProvidedZone[] }>();
+  const at = (t: number) => {
+    let entry = cache.get(t);
+    if (!entry) {
+      const known = analyze(candles.slice(0, t), params);
+      entry = { atr: known.atr[t - 1] ?? null, daily: toProvided(known.zones), weekly: toProvided(known.weeklyZones) };
+      cache.set(t, entry);
+    }
+    return entry;
   };
+  return {
+    daily: (t) => ({ atr: at(t).atr, zones: at(t).daily }),
+    // ATR kunlik — hodisa va natija kunlik shamlarda o'lchanadi
+    weekly: (t) => ({ atr: at(t).atr, zones: at(t).weekly }),
+  };
+}
+
+export function algorithmProvider(candles: Candle[], params: AlgoParams): ZoneProvider {
+  return createProviders(candles, params).daily;
 }
 
 export type BacktestEvent = {
@@ -34,6 +54,7 @@ export type BacktestEvent = {
   control: boolean; // true — soya (tasodifiy siljitilgan) zona
   kind: Zone['kind']; // soya uchun — asl zonaniki
   score: number; // kirishdan oldingi kun holatiga
+  touches: number; // soya uchun — asl zonaniki
   approach: Side;
   widthAtr: number;
   outcome: Outcome;
@@ -75,6 +96,7 @@ export function collectEvents(candles: Candle[], params: AlgoParams, options: Wa
         control,
         kind: zone.kind,
         score: zone.score,
+        touches: zone.touches,
         approach,
         widthAtr: (top - bottom) / atr,
         ...measureOutcome(candles, t, approach, top, bottom, atr, params),
