@@ -19,7 +19,15 @@ type TwelveDataResponse = {
 const SYMBOL = 'XAU/USD';
 const INTERVAL = '1day';
 const TIMEFRAME = 'Daily';
-const OUTPUT_SIZE = 100; // Oxirgi 100 kunlik ma'lumot
+const DEFAULT_OUTPUT_SIZE = 30; // Kunlik yangilash uchun yetarli (bo'shliqlarni ham qoplaydi)
+const MAX_OUTPUT_SIZE = 5000; // TwelveData limiti, ~18 yillik kunlik tarix (backfill uchun)
+
+// Oltin dam olish kunlari savdo qilinmaydi — TwelveData 2024 oxiridan beri shanba/yakshanba
+// uchun soxta (deyarli tekis) shamlar qaytaradi, ular ATR va swing hisobini buzadi
+function isWeekend(date: string): boolean {
+  const day = new Date(`${date}T00:00:00Z`).getUTCDay();
+  return day === 0 || day === 6;
+}
 
 export async function GET(request: Request) {
   try {
@@ -34,10 +42,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'TWELVEDATA_API_KEY topilmadi' }, { status: 500 });
     }
 
+    // ?outputsize=5000 — to'liq tarixni bir marta yuklash (backfill) uchun
+    const requested = Number(new URL(request.url).searchParams.get('outputsize'));
+    const outputSize = requested > 0 ? Math.min(requested, MAX_OUTPUT_SIZE) : DEFAULT_OUTPUT_SIZE;
+
     const params = new URLSearchParams({
       symbol: SYMBOL,
       interval: INTERVAL,
-      outputsize: String(OUTPUT_SIZE),
+      outputsize: String(outputSize),
+      timezone: 'UTC', // Kunlik sham chegarasi — UTC 00:00
       apikey: apiKey,
     });
     const response = await fetch(`https://api.twelvedata.com/time_series?${params}`);
@@ -51,16 +64,22 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'TwelveData dan shamlar kelmadi' }, { status: 404 });
     }
 
+    // Bugungi sham hali yopilmagan — u ertangi sinxronlashda to'liq holda yoziladi
+    const todayUtc = new Date().toISOString().slice(0, 10);
+
     // TwelveData eng yangisidan boshlab beradi, xronologik tartibga solamiz
-    const candles = [...data.values].reverse().map((candle) => ({
-      symbol: SYMBOL,
-      timeframe: TIMEFRAME,
-      timestamp: new Date(candle.datetime).toISOString(),
-      open: parseFloat(candle.open),
-      high: parseFloat(candle.high),
-      low: parseFloat(candle.low),
-      close: parseFloat(candle.close),
-    }));
+    const candles = [...data.values]
+      .reverse()
+      .filter((candle) => candle.datetime < todayUtc && !isWeekend(candle.datetime))
+      .map((candle) => ({
+        symbol: SYMBOL,
+        timeframe: TIMEFRAME,
+        timestamp: new Date(`${candle.datetime}T00:00:00Z`).toISOString(),
+        open: parseFloat(candle.open),
+        high: parseFloat(candle.high),
+        low: parseFloat(candle.low),
+        close: parseFloat(candle.close),
+      }));
 
     // RLS anon uchun faqat o'qishga ruxsat beradi, shuning uchun yozish admin client orqali
     const supabase = createAdminClient();
