@@ -14,7 +14,7 @@ ma'lumotda sinaladi.
 | Bosqich | Ma'lumot | Holati |
 |---|---|---|
 | Kashfiyot | XAU/USD, 2009-02-09 → 2021-02-24 (train) | Avval ko'rilgan (v0.1.0 backtest va parametr to'ri) |
-| Tasdiqlash | XAG/USD va EUR/USD, to'liq tarix (TwelveData, ≤5000 kunlik sham) | **Hech qachon ko'rilmagan** |
+| Tasdiqlash | USD/JPY va EUR/USD, to'liq tarix (TwelveData, ≤5000 kunlik sham) | **Hech qachon ko'rilmagan** |
 | Faqat ma'lumot uchun | XAU/USD, 2021-02-25 → 2026-09-25 (test) | 2 marta ko'rilgan — qarorda ishlatilmaydi |
 | Haqiqiy holdout | XAU/USD, 2026-09-26 dan keyingi yangi shamlar | Kelajak |
 
@@ -46,7 +46,7 @@ olinmaydi — u **to'g'ridan-to'g'ri tasdiqlash bosqichida** baholanadi.
 1. **Kashfiyot (XAU/USD train):** gipoteza bashorat qilingan yo'nalishda `z ≥ 2.58` bo'lsa va kamida
    100 ta haqiqiy hodisa bo'lsa, o'tadi. 2.58 — Bonferroni tuzatmasi: 5 ta test, umumiy α = 0.05
    (har biri uchun 0.01, ikki tomonlama).
-2. **Tasdiqlash:** kashfiyotdan o'tgan gipoteza (va H3) **ikkala** yangi instrumentda (XAG/USD va
+2. **Tasdiqlash:** kashfiyotdan o'tgan gipoteza (va H3) **ikkala** yangi instrumentda (USD/JPY va
    EUR/USD) bir xil yo'nalishda `z ≥ 1.96` bersa — **tasdiqlandi**.
 3. Aks holda — **rad etildi**. Qisman natijalar ("bitta instrumentda ishladi") tasdiq hisoblanmaydi.
 4. Tasdiqlangan gipoteza ham faqat keyingi bosqichga (forward test, yangi shamlar) o'tadi —
@@ -57,3 +57,10 @@ olinmaydi — u **to'g'ridan-to'g'ri tasdiqlash bosqichida** baholanadi.
 - Bir kunda bir nechta zonaga kirish va soyalar bir-biriga bog'liq — z-test ishonchni biroz
   oshirib ko'rsatadi. Shuning uchun chegara qat'iy (2.58) va ikki instrumentda takrorlanish talab qilinadi.
 - TwelveData kunlik shamlari UTC chegarasida; boshqa manbada natija biroz farq qilishi mumkin.
+
+## O'zgartirishlar jurnali
+
+- **2026-09-29, natijalar olinishidan oldin:** XAG/USD TwelveData bepul rejasida mavjud emas
+  ("available starting with the Grow or Venture plan"). Tasdiqlash instrumenti **USD/JPY** bilan
+  almashtirildi. GBP/USD tanlanmadi, chunki u EUR/USD bilan kuchli korrelyatsiyalangan — ikki
+  tasdiq mustaqil bo'lmasdi. Boshqa qoidalar o'zgarmadi.
