@@ -15,6 +15,8 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "XAU/USD — zonalar tahlili",
   description: "Oltin (XAU/USD) kunlik grafigida support/resistance va supply/demand zonalari",
+  // Shaxsiy sayt — qidiruv tizimlari indekslamasin
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -9,10 +9,14 @@ export const maxDuration = 60;
 // Kunlik jarayon: yangi shamlar → zonalarni qayta hisoblash → bosh sahifani yangilash.
 //   GET /api/cron/daily                  — oxirgi 30 kun (kunlik cron)
 //   GET /api/cron/daily?outputsize=5000  — to'liq tarixni qayta yuklash (backfill)
-// CRON_SECRET berilgan bo'lsa, "Authorization: Bearer <CRON_SECRET>" talab qilinadi
-// (Vercel Cron uni avtomatik yuboradi).
+// "Authorization: Bearer <CRON_SECRET>" talab qilinadi — Vercel Cron uni avtomatik yuboradi.
+// Production'da CRON_SECRET majburiy: u unutilsa route ochiq qolmasin (bazaga yozadi va
+// TwelveData limitini sarflaydi). Lokal dev'da ixtiyoriy.
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret && process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'CRON_SECRET sozlanmagan' }, { status: 500 });
+  }
   if (cronSecret && request.headers.get('authorization') !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
